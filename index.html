@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SYMULACJA_BIUROKRACJA_V9</title>
+    <style>
+        :root {
+            /* Dark Operations Palette */
+            --bg-color: #050505;    /* Void Black */
+            --text-color: #b0b0b0;  /* Dim Grey */
+            --line-color: #404040;  /* Structure Grey */
+            --accent-color: #cf3030; /* Critical Red */
+            --window-bg: #121212;   /* Deep Dark Window */
+            --window-border: #555555; 
+            --bee-color: #ffffff;   /* Pure Data White */
+            --honey-color: #eeeeee; /* Processed Data */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            text-transform: lowercase;
+        }
+
+        /* Start Overlay */
+        #start-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            transition: opacity 0.5s;
+        }
+        
+        #start-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .start-btn {
+            background: transparent;
+            border: 2px solid var(--text-color);
+            color: var(--text-color);
+            padding: 20px 40px;
+            font-family: inherit;
+            font-size: 1.1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            animation: pulse-btn 2s infinite;
+        }
+
+        @keyframes pulse-btn {
+            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.1); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 255, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+        }
+
+        /* CRT Grain */
+        body::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.1),
+                rgba(0, 0, 0, 0.1) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        #canvas-container {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        #controls {
+            background-color: var(--bg-color);
+            padding: 15px;
+            border-top: 1px solid #333;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            min-width: 180px;
+            flex: 1;
+            max-width: 250px;
+        }
+
+        label {
+            font-size: 0.75rem;
+            margin-bottom: 8px;
+            color: var(--text-color);
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed #444;
+            padding-bottom: 2px;
+        }
+
+        span.value-display {
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 1px;
+            background: #444;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 10px;
+            height: 10px;
+            background: var(--bg-color);
+            border: 1px solid var(--text-color);
+            cursor: pointer;
+        }
+
+        /* Retro Window Button Style */
+        .btn-window {
+            background-color: var(--window-bg);
+            color: var(--text-color);
+            border: 1px solid var(--window-border);
+            padding: 0; 
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.75rem;
+            transition: all 0.1s;
+            display: flex;
+            flex-direction: column;
+            width: 160px;
+            height: 40px;
+            box-shadow: 2px 2px 0px #000;
+            position: relative;
+        }
+
+        .btn-window:active {
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0px #000;
+        }
+
+        .window-bar {
+            background: var(--window-border);
+            color: #000;
+            height: 12px;
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+            padding-right: 4px;
+            box-sizing: border-box;
+            align-items: center;
+        }
+        
+        .window-x {
+            font-size: 10px;
+            font-weight: bold;
+            line-height: 10px;
+        }
+
+        .window-content-btn {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: lowercase;
+        }
+
+        /* Modal - Full Retro Window */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal {
+            background: var(--window-bg);
+            width: 400px;
+            border: 2px solid var(--window-border);
+            box-shadow: 10px 10px 0px #000;
+            display: flex;
+            flex-direction: column;
+            padding: 2px; 
+        }
+
+        .modal-header {
+            background: var(--window-border);
+            color: #000;
+            padding: 4px 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .close-btn {
+            background: #000;
+            color: #fff;
+            border: 1px solid #000;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+            line-height: 1;
+        }
+        
+        .close-btn:hover {
+            background: var(--accent-color);
+        }
+
+        .modal-content {
+            color: var(--text-color);
+            padding: 15px 20px;
+            line-height: 1.4;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            min-height: 100px;
+        }
+        
+        .modal-footer {
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            background: transparent;
+            border: 1px solid var(--text-color);
+            color: var(--text-color);
+            padding: 5px 20px;
+            cursor: pointer;
+            font-family: inherit;
+            text-transform: uppercase;
+        }
+        
+        .modal-btn:hover {
+            background: var(--text-color);
+            color: #000;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Ekran Startowy -->
+    <div id="start-overlay">
+        <div style="margin-bottom: 20px; color: #666; font-size: 0.8rem;">system_pętli_v9.0 // </div>
+        <button class="start-btn" onclick="startSimulation()">rozpocznij symulację</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="simCanvas"></canvas>
+    </div>
+
+    <!-- Modal Raportu -->
+    <div class="modal-overlay" id="report-modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <span>faks.exe</span>
+                <button class="close-btn" onclick="closeModal()">x</button>
+            </div>
+            <div class="modal-content" id="report-content">
+                <!-- Treść -->
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn" onclick="closeModal()">potwierdź</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Koniec Dnia -->
+    <div class="modal-overlay" id="end-day-modal">
+        <div class="modal" style="border-color: var(--accent-color);">
+            <div class="modal-header" style="background: var(--accent-color);">
+                <span>ALARM_17:00</span>
+                <button class="close-btn" onclick="resetSimulation()">x</button>
+            </div>
+            <div class="modal-content" style="text-align: center;">
+                <br>
+                WYBIŁA GODZINA 17:00.
+                <br><br>
+                PRZESTRZEŃ BIUROWA ZOSTAŁA CAŁKOWICIE ZAJĘTA.
+                <br>
+                SYSTEM WYMAGA RESTARTU.
+                <br><br>
+                KONIEC PROCESU.
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn" onclick="resetSimulation()">RESET SYSTEMU</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="bee-slider">siła robocza <span id="bee-val" class="value-display">50</span></label>
+            <input type="range" id="bee-slider" min="0" max="300" value="50">
+        </div>
+        <div class="control-group">
+            <label for="resource-slider">prędkość absurdu <span id="resource-val" class="value-display">50</span></label>
+            <input type="range" id="resource-slider" min="1" max="100" value="50">
+        </div>
+        
+        <!-- Przyciski w stylu retro okienek -->
+        <div class="control-group" style="flex-direction: row; justify-content: center; gap: 15px; max-width: 400px;">
+             
+             <button class="btn-window" onclick="generateRandomReport()">
+                 <div class="window-bar"><span class="window-x">x</span></div>
+                 <div class="window-content-btn">odbierz faks</div>
+             </button>
+
+             <button class="btn-window" onclick="manualReset()" style="border-color: #522;">
+                 <div class="window-bar" style="background: #522;"><span class="window-x">x</span></div>
+                 <div class="window-content-btn" style="color: #a55;">reset kariery</div>
+             </button>
+
+        </div>
+    </div>
+
+    <script>
+        /**
+         * SYMULACJA BIUROKRACJI V9: DARK OPS
+         * - Dark Theme
+         * - Fixed Bee Flight Area (Full Screen)
+         * - Turbo Absurd Scaling
+         * - Debugged Code Structure
+         */
+
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        let simulationStarted = false;
+        
+        const beeSlider = document.getElementById('bee-slider');
+        const resourceSlider = document.getElementById('resource-slider');
+        const beeValDisplay = document.getElementById('bee-val');
+        const resourceValDisplay = document.getElementById('resource-val');
+
+        let config = {
+            beeCount: parseInt(beeSlider.value),
+            absurdLevel: parseInt(resourceSlider.value),
+            baseHexRadius: 6, 
+            zoom: 1.0,
+            gridSize: 15,
+            // Base speeds increased significantly for turbo mode
+            baseBuildSpeed: 5.0,
+            baseHoneySpeed: 5.0
+        };
+
+        let bees = [];
+        let grid = new Map(); 
+        let centerX, centerY;
+        let totalHoney = 0;
+        let frameCount = 0; 
+
+        const managementLogs = [
+            "nieznana anomalia w sektorze 7. sugerowane ignorowanie.",
+            "zużycie tlenu przekroczyło normy. proszę oddychać wolniej.",
+            "twoje biurko zostało wynajęte firmie zewnętrznej. pracuj na stojąco.",
+            "nowa procedura: każdy e-mail musi być drukowany i niszczony.",
+            "wykryto spadek morale. emitowanie gazu rozweselającego.",
+            "zarząd przypomina: jesteście rodziną (dysfunkcyjną).",
+            "cisza nocna została odwołana. pracujemy 24/7.",
+            "z powodu cięć budżetowych, grawitacja zostanie wyłączona o 14:00.",
+            "ten komunikat nie istnieje. ty też nie.",
+            "błąd krytyczny: znaleziono sens życia. usuwanie..."
+        ];
+
+        function startSimulation() {
+            document.getElementById('start-overlay').classList.add('hidden');
+            simulationStarted = true;
+            resizeCanvas(); // Ensure canvas is ready
+        }
+
+        function generateRandomReport() {
+            const modal = document.getElementById('report-modal-overlay');
+            const content = document.getElementById('report-content');
+            const honey = Math.floor(totalHoney);
+            const beesCount = bees.length;
+            const randomLog = managementLogs[Math.floor(Math.random() * managementLogs.length)];
+            
+            const reportHTML = `RAPORT DANYCH:\n- przetworzone jednostki: ${honey}\n- aktywne drony: ${beesCount}\n\nLOG SYSTEMOWY:\n"${randomLog}"`;
+
+            content.innerText = reportHTML;
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            document.querySelectorAll('.modal-overlay').forEach(el => el.classList.remove('active'));
+        }
+
+        function manualReset() {
+            resetSimulationLogic();
+        }
+
+        function resetSimulation() {
+            closeModal();
+            resetSimulationLogic();
+        }
+
+        function resetSimulationLogic() {
+            grid.clear();
+            totalHoney = 0;
+            bees = [];
+            createCell(0, 0);
+            grid.get("0,0").built = 100;
+            updateBeeCount();
+        }
+
+        function triggerEndDay() {
+            const modal = document.getElementById('end-day-modal');
+            if (!modal.classList.contains('active')) {
+                modal.classList.add('active');
+            }
+        }
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 0.001;
+            config.zoom += e.deltaY * -zoomSpeed;
+            config.zoom = Math.min(Math.max(0.5, config.zoom), 5.0); 
+        }, { passive: false });
+
+        // --- Bee Class ---
+        class Bee {
+            constructor() {
+                this.reset();
+                // Start anywhere on screen initially to look busy
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+            }
+
+            reset() {
+                this.state = 'IDLE'; 
+                this.targetX = null;
+                this.targetY = null;
+                this.targetCellKey = null;
+                this.cargo = 0; 
+                this.speed = 2 + Math.random() * 2; 
+            }
+
+            update() {
+                // Absurd Scaling: Higher slider = Faster Build/Honey
+                // Multiplier from 1.0 to 5.0 based on slider
+                const speedMultiplier = 1 + (config.absurdLevel / 20);
+                const currentBuildSpeed = config.baseBuildSpeed * speedMultiplier;
+                const currentHoneySpeed = config.baseHoneySpeed * speedMultiplier;
+
+                if (this.state === 'IDLE') this.decideNextTask();
+                else if (this.state === 'FORAGING') {
+                    this.moveToTarget();
+                    if (this.hasReachedTarget()) {
+                        // Always succeeds in foraging in this version for speed
+                        this.cargo = 1;
+                        this.state = 'RETURNING';
+                        this.findHiveTarget();
+                    }
+                } else if (this.state === 'RETURNING') {
+                    this.moveToTarget();
+                    if (this.hasReachedTarget()) {
+                        if (this.targetCellKey && grid.has(this.targetCellKey)) {
+                            const cell = grid.get(this.targetCellKey);
+                            if (cell.built < 100) this.state = 'BUILDING';
+                            else if (cell.honey < 100) this.state = 'STORING';
+                            else { this.cargo = 0; this.state = 'IDLE'; }
+                        } else this.state = 'IDLE';
+                    }
+                } else if (this.state === 'BUILDING') {
+                    const cell = grid.get(this.targetCellKey);
+                    if (cell && cell.built < 100) {
+                        cell.built += currentBuildSpeed;
+                        this.cargo -= 0.05; 
+                        if (this.cargo <= 0 || cell.built >= 100) { this.cargo = 0; this.state = 'IDLE'; }
+                    } else this.state = 'IDLE';
+                } else if (this.state === 'STORING') {
+                    const cell = grid.get(this.targetCellKey);
+                    if (cell && cell.honey < 100 && cell.built >= 100) {
+                        cell.honey += currentHoneySpeed;
+                        totalHoney += currentHoneySpeed / 100; 
+                        this.cargo -= 0.1;
+                        if (this.cargo <= 0 || cell.honey >= 100) { this.cargo = 0; this.state = 'IDLE'; }
+                    } else this.state = 'IDLE';
+                }
+            }
+
+            decideNextTask() {
+                this.state = 'FORAGING';
+                this.pickRandomForageTarget();
+            }
+
+            pickRandomForageTarget() {
+                // FIX: Full Screen Flight
+                // Instead of a circle around center, pick any point on the visible canvas
+                // Expanded slightly beyond canvas to make them enter/exit screen
+                const margin = 50;
+                this.targetX = -margin + Math.random() * (canvas.width + margin*2);
+                this.targetY = -margin + Math.random() * (canvas.height + margin*2);
+            }
+
+            findHiveTarget() {
+                const allCells = Array.from(grid.values());
+                const unfinished = allCells.filter(c => c.built < 100 && !c.reserved);
+                if (unfinished.length > 0) {
+                    unfinished.sort((a, b) => (distHex(a.q, a.r) - distHex(b.q, b.r)));
+                    this.setTargetCell(unfinished[0]);
+                    return;
+                }
+                const emptyForHoney = allCells.filter(c => c.built >= 100 && c.honey < 100 && !c.reserved);
+                if (emptyForHoney.length > 0) {
+                    emptyForHoney.sort((a, b) => (distHex(a.q, a.r) - distHex(b.q, b.r)));
+                    this.setTargetCell(emptyForHoney[0]);
+                    return;
+                }
+                this.expandHive();
+            }
+
+            expandHive() {
+                const allCells = Array.from(grid.values());
+                // Prioritize growing outwards roughly
+                allCells.sort((a, b) => (distHex(a.q, a.r) - distHex(b.q, b.r)));
+                
+                // Trigger End of Day Logic based on Frame Size
+                const frameZoom = Math.max(1.0, config.zoom); 
+                const limitDistance = (Math.min(canvas.width, canvas.height) / 2 * frameZoom) - (80 * frameZoom);
+                
+                const furthest = allCells[allCells.length-1];
+                const furthestPos = hexToPixel(furthest.q, furthest.r);
+                const distFromCenter = Math.sqrt(Math.pow(furthestPos.x - centerX, 2) + Math.pow(furthestPos.y - centerY, 2));
+                
+                if (distFromCenter > limitDistance) {
+                    triggerEndDay();
+                    return; 
+                }
+
+                const neighborsOffsets = [{q: 1, r: 0}, {q: 1, r: -1}, {q: 0, r: -1}, {q: -1, r: 0}, {q: -1, r: 1}, {q: 0, r: 1}];
+                for (let cell of allCells) {
+                    for (let offset of neighborsOffsets) {
+                        const nQ = cell.q + offset.q;
+                        const nR = cell.r + offset.r;
+                        const key = `${nQ},${nR}`;
+                        if (!grid.has(key)) {
+                            createCell(nQ, nR);
+                            this.setTargetCell(grid.get(key));
+                            return;
+                        }
+                    }
+                }
+            }
+
+            setTargetCell(cell) {
+                this.targetCellKey = `${cell.q},${cell.r}`;
+                const pos = hexToPixel(cell.q, cell.r);
+                this.targetX = pos.x;
+                this.targetY = pos.y;
+            }
+
+            moveToTarget() {
+                const dx = this.targetX - this.x;
+                const dy = this.targetY - this.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist > this.speed) {
+                    this.x += (dx / dist) * this.speed;
+                    this.y += (dy / dist) * this.speed;
+                } else {
+                    this.x = this.targetX;
+                    this.y = this.targetY;
+                }
+            }
+
+            hasReachedTarget() {
+                const dx = this.targetX - this.x;
+                const dy = this.targetY - this.y;
+                return Math.sqrt(dx*dx + dy*dy) < this.speed * 2;
+            }
+            
+            angleToTarget() {
+                if (this.targetX === null) return 0;
+                return Math.atan2(this.targetY - this.y, this.targetX - this.x) + Math.PI/2;
+            }
+        }
+
+        function createCell(q, r) { grid.set(`${q},${r}`, { q: q, r: r, built: 0, honey: 0, reserved: false }); }
+        
+        function hexToPixel(q, r) {
+            const r_zoomed = config.baseHexRadius * config.zoom;
+            const x = r_zoomed * (3/2 * q);
+            const y = r_zoomed * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r);
+            return { x: centerX + x, y: centerY + y };
+        }
+        
+        function distHex(q, r) { return (Math.abs(q) + Math.abs(q + r) + Math.abs(r)) / 2; }
+
+        // --- Dark Frame Logic ---
+        function drawFrame(ctx, width, height, time) {
+            ctx.strokeStyle = '#404040'; // Darker lines
+            ctx.lineWidth = 0.5; 
+            
+            const frameZoom = Math.max(1.0, config.zoom); 
+
+            const worldW = width * frameZoom;
+            const worldH = height * frameZoom;
+            
+            const startX = (width - worldW) / 2;
+            const startY = (height - worldH) / 2;
+
+            const borderSize = 80 * frameZoom; 
+            const linesPerSide = Math.max(5, Math.floor(20 * Math.min(1.5, frameZoom)));
+            
+            // Function to draw jagged lines
+            const drawSide = (x1, y1, x2, y2, dx, dy, i) => {
+                 ctx.beginPath();
+                 ctx.moveTo(x1, y1);
+                 
+                 const steps = 20;
+                 const xStep = (x2 - x1) / steps;
+                 const yStep = (y2 - y1) / steps;
+                 
+                 for(let s=0; s<=steps; s++) {
+                     let currX = x1 + xStep * s;
+                     let currY = y1 + yStep * s;
+                     
+                     // Noise calc
+                     let distFactor = 0;
+                     if (dx !== 0) distFactor = Math.sin(currX * 0.05 + time * 0.05 + i);
+                     else distFactor = Math.cos(currY * 0.05 + time * 0.05 + i);
+                     
+                     let offset = distFactor * (10 * frameZoom);
+                     
+                     if (dx !== 0) currY += offset;
+                     else currX += offset;
+                     
+                     ctx.lineTo(currX, currY);
+                 }
+                 ctx.stroke();
+            };
+
+            // Simplified drawing loop for dark mode vibes
+            for(let i=0; i<linesPerSide; i++) {
+                let offset = i * (borderSize/linesPerSide);
+                // Bottom
+                let y = startY + worldH - offset;
+                ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(startX + worldW, y); ctx.stroke();
+                
+                // Top
+                y = startY + offset;
+                ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(startX + worldW, y); ctx.stroke();
+
+                // Left
+                let x = startX + offset;
+                ctx.beginPath(); ctx.moveTo(x, startY); ctx.lineTo(x, startY + worldH); ctx.stroke();
+
+                // Right
+                x = startX + worldW - offset;
+                ctx.beginPath(); ctx.moveTo(x, startY); ctx.lineTo(x, startY + worldH); ctx.stroke();
+            }
+        }
+
+        function drawHexagon(ctx, x, y, radius, cell) {
+            const r_zoomed = config.baseHexRadius * config.zoom;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle_rad = Math.PI / 180 * (60 * i);
+                const px = x + r_zoomed * Math.cos(angle_rad);
+                const py = y + r_zoomed * Math.sin(angle_rad);
+                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+
+            if (cell.built < 100) {
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 0.5;
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = '#111';
+                ctx.fill();
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 0.5;
+                ctx.stroke();
+            }
+
+            if (cell.honey > 0) {
+                const scale = cell.honey / 100;
+                if (scale > 0.1) {
+                    ctx.fillStyle = '#fff'; // Pure data
+                    const s = r_zoomed * 0.5 * scale;
+                    ctx.fillRect(x - s, y - s, s*2, s*2);
+                }
+            }
+        }
+
+        function drawBeeSimple(bee) {
+             const pos = {x: bee.x, y: bee.y};
+             ctx.save();
+             ctx.translate(pos.x, pos.y);
+             ctx.rotate(bee.angleToTarget());
+             const scale = config.zoom;
+             
+             // High contrast bee
+             ctx.fillStyle = '#fff';
+             ctx.fillRect(-1.5*scale, -1.5*scale, 3*scale, 3*scale);
+             
+             ctx.restore();
+        }
+
+        function init() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            createCell(0, 0);
+            grid.get("0,0").built = 100; 
+            updateBeeCount();
+            requestAnimationFrame(loop);
+        }
+
+        function resizeCanvas() {
+            canvas.width = document.getElementById('canvas-container').clientWidth;
+            canvas.height = document.getElementById('canvas-container').clientHeight;
+            centerX = canvas.width / 2;
+            centerY = canvas.height / 2;
+        }
+
+        function updateBeeCount() {
+            const targetCount = config.beeCount;
+            if (bees.length < targetCount) {
+                for (let i = bees.length; i < targetCount; i++) bees.push(new Bee());
+            } else if (bees.length > targetCount) bees.splice(targetCount);
+        }
+
+        function loop() {
+            frameCount++;
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw subtle frame
+            drawFrame(ctx, canvas.width, canvas.height, frameCount);
+
+            if(simulationStarted) {
+                grid.forEach(cell => {
+                    const pos = hexToPixel(cell.q, cell.r);
+                    drawHexagon(ctx, pos.x, pos.y, config.baseHexRadius, cell);
+                });
+                bees.forEach(bee => {
+                    bee.update();
+                    drawBeeSimple(bee);
+                });
+            }
+            
+            beeValDisplay.innerText = config.beeCount;
+            resourceValDisplay.innerText = config.absurdLevel;
+            requestAnimationFrame(loop);
+        }
+
+        beeSlider.addEventListener('input', (e) => {
+            config.beeCount = parseInt(e.target.value);
+            updateBeeCount();
+        });
+
+        resourceSlider.addEventListener('input', (e) => {
+            config.absurdLevel = parseInt(e.target.value);
+        });
+
+        init();
+
+    </script>
+</body>
+</html>
